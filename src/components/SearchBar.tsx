@@ -3,8 +3,9 @@ import { IoClose, IoSearch } from "react-icons/io5";
 import { motion, AnimatePresence } from "framer-motion";
 import { useClickOutside } from "react-click-outside-hook";
 import MoonLoader from "react-spinners/MoonLoader";
-import useDebounce from "../hooks/useDebounce";
+import { useDebounce } from "../hooks/useDebounce";
 import axios from "axios";
+import TvShow, { Show } from "./TvShow";
 
 const SearchBar = () => {
   const [isExpaded, setExpanded] = useState<boolean>(false);
@@ -12,9 +13,14 @@ const SearchBar = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isLoading, setLoading] = useState<boolean>(false);
+  const [tvShows, setTvShows] = useState<Show[]>([]);
+  const [noTvShows, setNoTvShows] = useState<boolean>(false);
+
+  const isEmpty = !tvShows || tvShows.length === 0;
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     event.preventDefault();
+    if (event.target.value.trim() === "") setNoTvShows(false);
 
     setSearchQuery(event.target.value);
   };
@@ -25,6 +31,10 @@ const SearchBar = () => {
 
   const collapseContainer = () => {
     setExpanded(false);
+    setSearchQuery("");
+    setLoading(false);
+    setNoTvShows(false);
+    setTvShows([]);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -60,6 +70,7 @@ const SearchBar = () => {
     }
 
     setLoading(true);
+    setNoTvShows(false);
 
     const URL = prepareSearchQuery(searchQuery);
 
@@ -69,7 +80,12 @@ const SearchBar = () => {
 
     if (response) {
       console.log("Response: ", response.data);
+      if (response.data && response.data.length === 0) setNoTvShows(true);
+
+      setTvShows(response.data);
     }
+
+    setLoading(false);
   };
 
   useDebounce(searchQuery, 500, searchTvShows);
@@ -117,14 +133,45 @@ const SearchBar = () => {
         </AnimatePresence>
       </div>
       {/* Line Separator */}
-      <span className="flex min-w-full min-h-[0.125rem] bg-[#d8d8d878]"></span>
+      {isExpaded && (
+        <span className="flex min-w-full min-h-[0.125rem] bg-[#d8d8d878]"></span>
+      )}
 
       {/* Search Content */}
-      <div className="w-full h-full flex flex-col p-4 ">
+      <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
         {/* Loading Wrapper */}
-        <div className="w-full h-full flex items-center justify-center">
-          <MoonLoader loading color="#000" size={20} />
-        </div>
+        {isLoading && (
+          <div className="w-full h-full flex items-center justify-center">
+            <MoonLoader loading color="#000" size={20} />
+          </div>
+        )}
+        {!isLoading && isEmpty && !noTvShows && (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-[#a1a1a1] text-sm flex self-center justify-center">
+              Start typing to Search
+            </span>
+          </div>
+        )}
+        {!isLoading && noTvShows && (
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-[#a1a1a1] text-sm flex self-center justify-center">
+              No Tv Shows or Series found!
+            </span>
+          </div>
+        )}
+        {!isLoading && !isEmpty && (
+          <>
+            {tvShows.map(({ show }) => (
+              <TvShow
+                key={show.id}
+                url={show.url}
+                thumbnailSrc={show.image && show.image.medium}
+                name={show.name}
+                rating={show.rating && show.rating.average}
+              />
+            ))}
+          </>
+        )}
       </div>
     </motion.div>
   );
