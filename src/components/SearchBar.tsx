@@ -2,10 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { IoClose, IoSearch } from "react-icons/io5";
 import { motion, AnimatePresence } from "framer-motion";
 import { useClickOutside } from "react-click-outside-hook";
-import MoonLoader from "react-spinners/MoonLoader";
-import { useDebounce } from "../hooks/useDebounce";
-import axios from "axios";
-import TvShow, { Show } from "./TvShow";
+import { Show } from "./TvShow";
+import SearchAutocompleteContent from "./SearchAutocompleteContent";
+import useDebounce from "../hooks/useDebounce";
 
 const SearchBar = () => {
   const [isExpaded, setExpanded] = useState<boolean>(false);
@@ -15,8 +14,7 @@ const SearchBar = () => {
   const [isLoading, setLoading] = useState<boolean>(false);
   const [tvShows, setTvShows] = useState<Show[]>([]);
   const [noTvShows, setNoTvShows] = useState<boolean>(false);
-
-  const isEmpty = !tvShows || tvShows.length === 0;
+  const debouncedValue = useDebounce<string>(searchQuery);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     event.preventDefault();
@@ -58,37 +56,34 @@ const SearchBar = () => {
     }
   }, [isClickedOutside]);
 
-  const prepareSearchQuery = (query: string) => {
-    const url = `http://api.tvmaze.com/search/shows?q=${query}`;
+  // Fetch API
+  useEffect(() => {
+    const searchTvShows = async () => {
+      if (!debouncedValue || debouncedValue === "") {
+        return;
+      }
 
-    return encodeURI(url);
-  };
+      setLoading(true);
+      setNoTvShows(false);
 
-  const searchTvShows = async () => {
-    if (!searchQuery || searchQuery === "") {
-      return;
-    }
+      const data = await fetch(`/api/shows?searchQuery=${debouncedValue}`).then(
+        (response) => response.json()
+      );
 
-    setLoading(true);
-    setNoTvShows(false);
+      if (data) {
+        if (data.length === 0) {
+          setNoTvShows(true);
+        }
 
-    const URL = prepareSearchQuery(searchQuery);
+        setTvShows(data);
+      }
 
-    const response = await axios.get(URL).catch((err) => {
-      console.log("Error: ", err);
-    });
-
-    if (response) {
-      console.log("Response: ", response.data);
-      if (response.data && response.data.length === 0) setNoTvShows(true);
-
-      setTvShows(response.data);
-    }
-
-    setLoading(false);
-  };
-
-  useDebounce(searchQuery, 500, searchTvShows);
+      setLoading(false);
+    };
+    // Do fetch here...
+    searchTvShows();
+    // Triggers when "debouncedValue" changes
+  }, [debouncedValue]);
 
   return (
     <motion.div
@@ -138,41 +133,11 @@ const SearchBar = () => {
       )}
 
       {/* Search Content */}
-      <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
-        {/* Loading Wrapper */}
-        {isLoading && (
-          <div className="w-full h-full flex items-center justify-center">
-            <MoonLoader loading color="#000" size={20} />
-          </div>
-        )}
-        {!isLoading && isEmpty && !noTvShows && (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[#a1a1a1] text-sm flex self-center justify-center">
-              Start typing to Search
-            </span>
-          </div>
-        )}
-        {!isLoading && noTvShows && (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[#a1a1a1] text-sm flex self-center justify-center">
-              No Tv Shows or Series found!
-            </span>
-          </div>
-        )}
-        {!isLoading && !isEmpty && (
-          <>
-            {tvShows.map(({ show }) => (
-              <TvShow
-                key={show.id}
-                url={show.url}
-                thumbnailSrc={show.image && show.image.medium}
-                name={show.name}
-                rating={show.rating && show.rating.average}
-              />
-            ))}
-          </>
-        )}
-      </div>
+      <SearchAutocompleteContent
+        isLoading={isLoading}
+        noTvShows={noTvShows}
+        tvShows={tvShows}
+      />
     </motion.div>
   );
 };
